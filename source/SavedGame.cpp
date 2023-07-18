@@ -21,9 +21,9 @@ this program. If not, see <https://www.gnu.org/licenses/>.
 #include "text/Format.h"
 #include "SpriteSet.h"
 
+#include <cstdint>
+
 using namespace std;
-
-
 
 SavedGame::SavedGame(const string &path)
 {
