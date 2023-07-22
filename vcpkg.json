@@ -10,6 +10,7 @@
         },
         "libpng",
         "libjpeg-turbo",
+        "lua",
         "libmad",
         {
           "name": "libuuid",
