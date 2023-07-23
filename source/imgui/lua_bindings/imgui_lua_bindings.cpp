@@ -1,5 +1,8 @@
+#include "imgui_lua_bindings.h"
+
+#include "../imgui.h"
+
 #include <stdio.h>
-#include <imgui.h>
 #include <deque>
 
 extern "C" {
@@ -19,7 +22,12 @@ extern "C" {
 
 
 // define this global before you call RunString or LoadImGuiBindings
-static lua_State* lState;
+static lua_State* lState = nullptr;
+static std::function<ImTextureID (const char*)> imageFileConverter;
+
+// Additional helper functions   
+static int BeginFullscreen(lua_State* L); // Helper function for creating fullscreen windows
+static int EndFullscreen(lua_State* L); // Call this instead of End() when using BeginFullscreen
 
 #ifdef ENABLE_IM_LUA_END_STACK
 // Stack for imgui begin and end
@@ -94,7 +102,12 @@ static int impl_##name(lua_State *L) { \
 // I use OpenGL so this is a GLuint
 // Using unsigned int cause im lazy don't copy me
 #define IM_TEXTURE_ID_ARG(name) \
-  const ImTextureID name = (ImTextureID)luaL_checkinteger(L, arg++);
+  const char* name##_file; \
+  ImTextureID name = 0; \
+  if (arg <= max_args) { \
+    name##_file = lua_tostring(L, arg++); \
+    name = imageFileConverter(name##_file); \
+  }
 
 #define OPTIONAL_LABEL_ARG(name) \
   const char* name; \
@@ -385,7 +398,9 @@ static const struct luaL_Reg imguilib [] = {
 #define END_ENUM(name)
 
 #include "imgui_iterator.inl"
-  {"Button", impl_Button},
+  {"Text", impl_TextUnformatted}, // Add simpler text drawing alias
+  {"BeginFullscreen", BeginFullscreen},
+  {"EndFullscreen", EndFullscreen},
   {NULL, NULL}
 };
 
@@ -497,8 +512,34 @@ static void PushImguiEnums(lua_State* lState, const char* tableName) {
 };
 
 
-void LoadImguiBindings(lua_State* L) {
+
+// Helper function for creating fullscreen windows
+static int BeginFullscreen(lua_State* L)
+{
+    size_t i_label_size;
+    const char* label = luaL_checklstring(L, 1, &(i_label_size));
+    ImGui::SetNextWindowPos(ImVec2(0.0f, 0.0f));
+    ImGui::SetNextWindowSize(ImGui::GetIO().DisplaySize);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
+    ImGui::Begin(label, nullptr, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoBackground);
+    return 0;
+}
+
+
+
+// Call this instead of End() when using BeginFullscreen
+static int EndFullscreen(lua_State* L)
+{
+    ImGui::End();
+    ImGui::PopStyleVar(1);
+    return 0;
+}
+
+
+
+void LoadImguiBindings(lua_State* L, std::function<ImTextureID (const char*)> converter) {
   lState = L;
+  imageFileConverter = converter;
   if (!lState) {
     fprintf(stderr, "You didn't assign the global lState, either assign that or refactor LoadImguiBindings and RunString\n");
   }

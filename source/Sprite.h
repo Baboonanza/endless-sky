@@ -59,6 +59,7 @@ public:
 
 private:
 	std::string name;
+	bool uiSprite = false;
 
 	uint32_t texture[2] = {0, 0};
 

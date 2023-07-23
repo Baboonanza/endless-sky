@@ -29,6 +29,7 @@ this program. If not, see <https://www.gnu.org/licenses/>.
 #include "GameLoadingPanel.h"
 #include "GameWindow.h"
 #include "Hardpoint.h"
+#include "ImGuiLua.h"
 #include "Logger.h"
 #include "MenuPanel.h"
 #include "Panel.h"
@@ -77,6 +78,7 @@ void PrintHelp();
 void PrintVersion();
 void GameLoop(PlayerInfo &player, const Conversation &conversation, const string &testToRun, bool debugMode);
 Conversation LoadConversation();
+void DebugMenu();
 void PrintTestsTable();
 #ifdef _WIN32
 void InitConsole();
@@ -205,6 +207,12 @@ int main(int argc, char *argv[])
             Audio::SetVolume(0);
         }
 
+		// Initialise Lua
+		if (!ImGuiLua::Init() && !debugMode)
+		{
+			return 1;
+		}
+
         // This is the main loop where all the action begins.
         GameLoop(player, conversation, testToRunName, debugMode);
     }
@@ -227,6 +235,7 @@ int main(int argc, char *argv[])
     Preferences::Save();
     Plugins::Save();
 
+	ImGuiLua::Quit();
     Audio::Quit();
     GameWindow::Quit();
 
@@ -277,18 +286,21 @@ void GameLoop(PlayerInfo &player, const Conversation &conversation, const string
             --toggleTimeout;
         chrono::steady_clock::time_point start = chrono::steady_clock::now();
 
-		// Begin ImGui frame
-		ImGui_ImplOpenGL3_NewFrame();
-		ImGui_ImplSDL2_NewFrame();
-		ImGui::NewFrame();
-		ImGui::ShowDemoWindow(); // Show demo window! :)
+        // Begin ImGui frame
+        ImGui_ImplOpenGL3_NewFrame();
+        ImGui_ImplSDL2_NewFrame();
+        ImGui::NewFrame();
+		if (debugMode)
+		{
+			DebugMenu(); // Show demo window! :)
+		}
 
         // Handle any events that occurred in this frame.
         SDL_Event event;
         while (SDL_PollEvent(&event))
         {
-			 // Forward your event to ImGui backend
-			ImGui_ImplSDL2_ProcessEvent(&event);
+            // Forward your event to ImGui backend
+            ImGui_ImplSDL2_ProcessEvent(&event);
 
             UI &activeUI = (menuPanels.IsEmpty() ? gamePanels : menuPanels);
 
@@ -424,9 +436,9 @@ void GameLoop(PlayerInfo &player, const Conversation &conversation, const string
         if (isFastForward)
             SpriteShader::Draw(SpriteSet::Get("ui/fast forward"), Screen::TopLeft() + Point(10., 10.));
 
-		// ImGui render frame
-		ImGui::Render();
-		ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+        // ImGui render frame
+        ImGui::Render();
+        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
         GameWindow::Step();
 
@@ -443,6 +455,37 @@ void GameLoop(PlayerInfo &player, const Conversation &conversation, const string
     // If player quit while landed on a planet, save the game if there are changes.
     if (player.GetPlanet() && gamePanels.CanSave())
         player.Save();
+}
+
+void DebugMenu()
+{
+	static bool showDemoWindow = false;
+	const auto shortcutPressed = [](ImGuiKey key) {
+		return ImGui::IsKeyPressed(ImGui::GetKeyIndex(key))/* && ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_LeftCtrl))*/;
+	};
+
+    ImGui::BeginMainMenuBar();
+    {
+		if (ImGui::BeginMenu("UI"))
+		{
+			if (ImGui::MenuItem("Reload Lua Script", "Ctrl+R", nullptr, true) || shortcutPressed(ImGuiKey_R))
+				ImGuiLua::Reload();
+			ImGui::EndMenu();
+		}
+
+        if (ImGui::BeginMenu("ImGui"))
+        {
+			if (ImGui::MenuItem("ImGui Demo", nullptr, nullptr, true))
+				showDemoWindow = !showDemoWindow;
+			ImGui::EndMenu();
+		}
+    }
+    ImGui::EndMainMenuBar();
+
+	if (showDemoWindow)
+	{
+		ImGui::ShowDemoWindow();
+	}
 }
 
 void PrintHelp()

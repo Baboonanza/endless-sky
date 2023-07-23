@@ -148,6 +148,8 @@ target_sources(EndlessSkyLib PRIVATE
 	ImageBuffer.h
 	ImageSet.cpp
 	ImageSet.h
+	ImGuiLua.h
+	ImGuiLua.cpp
 	InfoPanelState.cpp
 	InfoPanelState.h
 	Information.cpp
@@ -167,6 +169,8 @@ target_sources(EndlessSkyLib PRIVATE
 	LocationFilter.h
 	LogbookPanel.cpp
 	LogbookPanel.h
+	LuaValue.h
+	LuaValue.cpp
 	MainPanel.cpp
 	MainPanel.h
 	MapDetailPanel.cpp
@@ -377,4 +381,6 @@ target_sources(EndlessSkyLib PRIVATE
 	imgui/backends/imgui_impl_opengl3.cpp
 	imgui/backends/imgui_impl_sdl2.h
 	imgui/backends/imgui_impl_sdl2.cpp
-)
+	imgui/lua_bindings/imgui_lua_bindings.h
+	imgui/lua_bindings/imgui_lua_bindings.cpp
+ )

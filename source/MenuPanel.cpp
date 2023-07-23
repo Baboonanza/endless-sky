@@ -22,6 +22,7 @@ this program. If not, see <https://www.gnu.org/licenses/>.
 #include "text/FontSet.h"
 #include "text/Format.h"
 #include "GameData.h"
+#include "ImGuiLua.h"
 #include "Information.h"
 #include "Interface.h"
 #include "LoadPanel.h"
@@ -98,14 +99,14 @@ MenuPanel::MenuPanel(PlayerInfo &player, UI &gamePanels)
 
 void MenuPanel::Step()
 {
-	if(GetUI()->IsTop(this) && !scrollingPaused)
-	{
-		scroll += scrollSpeed;
-		if(scroll < 0)
-			scroll = (20 * static_cast<long long int>(credits.size()) + 299) * SCROLL_MOD;
-		if(scroll >= (20 * static_cast<long long int>(credits.size()) + 300) * SCROLL_MOD)
-			scroll = 0;
-	}
+	//if(GetUI()->IsTop(this) && !scrollingPaused)
+	//{
+	//	scroll += scrollSpeed;
+	//	if(scroll < 0)
+	//		scroll = (20 * static_cast<long long int>(credits.size()) + 299) * SCROLL_MOD;
+	//	if(scroll >= (20 * static_cast<long long int>(credits.size()) + 300) * SCROLL_MOD)
+	//		scroll = 0;
+	//}
 }
 
 
@@ -147,11 +148,12 @@ void MenuPanel::Draw()
 	}
 
 	GameData::Interfaces().Get("menu background")->Draw(info, this);
-	mainMenuUi->Draw(info, this);
-	GameData::Interfaces().Get("menu player info")->Draw(info, this);
+	//mainMenuUi->Draw(info, this);
+	//GameData::Interfaces().Get("menu player info")->Draw(info, this);
 
-	if(!credits.empty())
-		DrawCredits();
+	//if(!credits.empty())
+	//	DrawCredits();
+	ImGuiLua::CallDrawFunction("drawMenuPanel");
 }
 
 

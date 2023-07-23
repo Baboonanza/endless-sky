@@ -13,15 +13,23 @@ You should have received a copy of the GNU General Public License along with
 this program. If not, see <https://www.gnu.org/licenses/>.
 */
 
-#ifndef IMGUI_LUA_BINDINGS_H_
-#define IMGUI_LUA_BINDINGS_H_
+#ifndef IMGUILUA_H_
+#define IMGUILUA_H_
 
-#include <functional>
+#include "LuaValue.h"
 
-// Avoid including whole ImGui in header
-typedef uint32_t ImTextureID;
+// Class used by games panels to interact with the Lua files responsible for drawing the interface
+class ImGuiLua
+{
+public:
+	static bool Init();
+	static void Quit();
+	static void Reload();
 
-struct lua_State;
-void LoadImguiBindings(lua_State* L, std::function<ImTextureID (const char*)> converter);
+	static void ShowErrors();
+
+	static bool SyncDataStore(const LuaValueMap& dataStore);
+	static bool CallDrawFunction(const std::string& functionName);
+};
 
 #endif
