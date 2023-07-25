@@ -18,18 +18,37 @@ this program. If not, see <https://www.gnu.org/licenses/>.
 
 #include "LuaValue.h"
 
+#include <functional>
+#include <stdint.h>
+#include <string>
+
+typedef std::function<void(std::string, const LuaValueMap&)> OnUIActionHandler;
+
 // Class used by games panels to interact with the Lua files responsible for drawing the interface
 class ImGuiLua
 {
 public:
+	// Lifecycle functions
 	static bool Init();
 	static void Quit();
 	static void Reload();
 
-	static void ShowErrors();
+	// Push values into storage that will be synced to Lua when SyncData is called
+	static void SetValueToNil(const std::string& key);
+	static void SetValue(const std::string& key, bool value);
+	static void SetValue(const std::string& key, int64_t value);
+	static void SetValue(const std::string& key, double value);
+	static void SetValue(const std::string& key, const std::string& value);
 
-	static bool SyncDataStore(const LuaValueMap& dataStore);
-	static bool CallDrawFunction(const std::string& functionName);
+	// Send stored data to Lua script
+	static void SyncPendingData();
+
+	// Call a UI draw function
+	static bool CallDrawFunction(const std::string& functionName, OnUIActionHandler onActionHandler);
+
+	// Show an ImGui window with any errors recorded since last call
+	static void DebugUIDataWindow(bool* opened);
+	static void DebugShowErrors();
 };
 
 #endif

@@ -16,7 +16,7 @@ extern "C" {
 
 
 
-// define ENABLE_IM_LUA_END_STACK
+#define ENABLE_IM_LUA_END_STACK
 // to keep track of end and begins and clean up the imgui stack
 // if lua errors
 
@@ -25,9 +25,11 @@ extern "C" {
 static lua_State* lState = nullptr;
 static std::function<ImTextureID (const char*)> imageFileConverter;
 
-// Additional helper functions   
-static int BeginFullscreen(lua_State* L); // Helper function for creating fullscreen windows
-static int EndFullscreen(lua_State* L); // Call this instead of End() when using BeginFullscreen
+// Declare custom functions, see definition for comments
+static int BeginPanel(lua_State* L);
+static int EndPanel(lua_State* L);
+static int BeginFullscreen(lua_State* L);
+static int EndFullscreen(lua_State* L);
 
 #ifdef ENABLE_IM_LUA_END_STACK
 // Stack for imgui begin and end
@@ -43,49 +45,7 @@ static void PopEndStack(int type) {
 }
 
 static void ImEndStack(int type);
-
 #endif
-
-// Example lua run string function
-// returns NULL on success and error string on error
-const char * RunString(const char* szLua) {
-  if (!lState) {
-    fprintf(stderr, "You didn't assign the global lState, either assign that or refactor LoadImguiBindings and RunString\n");
-  }
-
-  int iStatus = luaL_loadstring(lState, szLua);
-  if(iStatus) {
-    return lua_tostring(lState, -1);
-    //fprintf(stderr, "Lua syntax error: %s\n", lua_tostring(lState, -1));
-    //return;
-  }
-#ifdef ENABLE_IM_LUA_END_STACK
-  endStack.clear();
-#endif
-  iStatus = lua_pcall( lState, 0, 0, 0 );
-
-#ifdef ENABLE_IM_LUA_END_STACK
-  bool wasEmpty = endStack.empty();
-  while(!endStack.empty()) {
-    ImEndStack(endStack.back());
-    endStack.pop_back();
-  }
-
-#endif
-  if( iStatus )
-  {
-      return lua_tostring(lState, -1);
-      //fprintf(stderr, "Error: %s\n", lua_tostring( lState, -1 ));
-      //return;
-  }
-#ifdef ENABLE_IM_LUA_END_STACK
-  else if (!wasEmpty) {
-    return "Script didn't clean up imgui stack properly";
-  }
-#endif
-  return NULL;
-}
-
 
 #define IMGUI_FUNCTION_DRAW_LIST(name) \
 static int impl_draw_list_##name(lua_State *L) { \
@@ -399,6 +359,8 @@ static const struct luaL_Reg imguilib [] = {
 
 #include "imgui_iterator.inl"
   {"Text", impl_TextUnformatted}, // Add simpler text drawing alias
+  {"BeginPanel", BeginPanel},
+  {"EndPanel", EndPanel},
   {"BeginFullscreen", BeginFullscreen},
   {"EndFullscreen", EndFullscreen},
   {NULL, NULL}
@@ -414,8 +376,7 @@ static void PushImguiEnums(lua_State* lState, const char* tableName) {
 #define START_ENUM(name) \
   lua_pushstring(lState, #name); \
   lua_newtable(lState); \
-  { \
-    int i = 1;
+  {
 #define MAKE_ENUM(c_name,lua_name) \
   lua_pushstring(lState, #lua_name); \
   lua_pushnumber(lState, c_name); \
@@ -511,6 +472,43 @@ static void PushImguiEnums(lua_State* lState, const char* tableName) {
   lua_rawset(lState, -3);
 };
 
+constexpr int PANEL_WINDOW_FLAGS = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoSavedSettings;
+
+// Helper function for a centered window with no decorations or background
+static int BeginPanel(lua_State* L)
+{
+    int maxArgs = lua_gettop(L);
+    int arg = 1;
+
+    ImGuiIO& io = ImGui::GetIO();
+    size_t i_label_size;
+    const char* label = luaL_checklstring(L, arg++, &(i_label_size));
+
+    if (maxArgs >= arg)
+    {
+        ImVec2 size{ static_cast<float>(lua_tonumber(L, 1)), 0.0f };
+        if (maxArgs > 3)
+            size.y = lua_tonumber(L, 2);
+        ImGui::SetNextWindowSize(size);
+    }
+
+    ImVec2 center{ io.DisplaySize.x * 0.5f, io.DisplaySize.y * 0.5f };
+    ImGui::SetNextWindowPos(center, ImGuiCond_Always, ImVec2(0.5f, 0.5f));
+    const bool result = ImGui::Begin(label, nullptr, PANEL_WINDOW_FLAGS);
+    if (result)
+        AddToStack(1);
+    lua_pushboolean(L, result);
+    return 1;
+}
+
+
+
+// Call this instead of End() when using BeginGamePanel
+static int EndPanel(lua_State* L)
+{
+    return impl_End(L);
+}
+
 
 
 // Helper function for creating fullscreen windows
@@ -518,11 +516,12 @@ static int BeginFullscreen(lua_State* L)
 {
     size_t i_label_size;
     const char* label = luaL_checklstring(L, 1, &(i_label_size));
-    ImGui::SetNextWindowPos(ImVec2(0.0f, 0.0f));
+    ImGui::SetNextWindowPos(ImVec2(0.f, 0.f));
     ImGui::SetNextWindowSize(ImGui::GetIO().DisplaySize);
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
-    ImGui::Begin(label, nullptr, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoBackground);
-    return 0;
+    const bool result = ImGui::Begin(label, nullptr, PANEL_WINDOW_FLAGS);
+    if (result)
+        AddToStack(1);
+    lua_pushboolean(L, result);
 }
 
 
@@ -530,9 +529,7 @@ static int BeginFullscreen(lua_State* L)
 // Call this instead of End() when using BeginFullscreen
 static int EndFullscreen(lua_State* L)
 {
-    ImGui::End();
-    ImGui::PopStyleVar(1);
-    return 0;
+    return impl_End(L);
 }
 
 
@@ -547,4 +544,39 @@ void LoadImguiBindings(lua_State* L, std::function<ImTextureID (const char*)> co
   luaL_setfuncs(lState, imguilib, 0);
   PushImguiEnums(lState, "constant");
   lua_setglobal(lState, "imgui");
+}
+
+
+
+const char* CallFunction(const char* functionName) {
+    lua_getglobal(lState, functionName);
+
+    // Stack checking
+#ifdef ENABLE_IM_LUA_END_STACK
+    endStack.clear();
+#endif
+
+    int result = lua_pcall(lState, 0, 0, 0);
+
+    // Stack checking
+#ifdef ENABLE_IM_LUA_END_STACK
+    bool wasEmpty = endStack.empty();
+    while (!endStack.empty()) {
+        ImEndStack(endStack.back());
+        endStack.pop_back();
+    }
+#endif
+
+    if (result)
+    {
+        return lua_tostring(lState, -1);
+    }
+    // Stack checking
+#ifdef ENABLE_IM_LUA_END_STACK
+    else if (!wasEmpty) {
+        return "Script didn't clean up imgui stack properly";
+    }
+#endif
+
+    return NULL;
 }

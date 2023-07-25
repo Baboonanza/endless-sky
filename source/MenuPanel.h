@@ -16,6 +16,7 @@ this program. If not, see <https://www.gnu.org/licenses/>.
 #ifndef MENU_PANEL_H_
 #define MENU_PANEL_H_
 
+#include "LuaValue.h"
 #include "Panel.h"
 
 #include <string>
@@ -37,8 +38,9 @@ public:
 	virtual void Step() override;
 	virtual void Draw() override;
 
-
 protected:
+	void HandleAction(std::string actionId, const LuaValueMap& args);
+
 	// Only override the ones you need; the default action is to return false.
 	virtual bool KeyDown(SDL_Keycode key, Uint16 mod, const Command &command, bool isNewPress) override;
 	virtual bool Click(int x, int y, int clicks) override;

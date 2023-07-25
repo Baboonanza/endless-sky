@@ -44,6 +44,7 @@ this program. If not, see <https://www.gnu.org/licenses/>.
 
 #include <algorithm>
 #include <cassert>
+#include <functional>
 #include <stdexcept>
 
 using namespace std;
@@ -93,6 +94,32 @@ MenuPanel::MenuPanel(PlayerInfo &player, UI &gamePanels)
 
 	if(player.GetPlanet())
 		Audio::PlayMusic(player.GetPlanet()->MusicName());
+
+	// Setup script data
+	ImGuiLua::SetValue("mainmenu.player.loaded", player.IsLoaded());
+	ImGuiLua::SetValue("mainmenu.player.dead", player.IsDead());
+	if (player.IsLoaded())
+	{
+		ImGuiLua::SetValue("mainmenu.player.name", player.FirstName() + " " + player.LastName());
+
+		if (!player.IsDead())
+		{
+			ImGuiLua::SetValue("mainmenu.player.credits", Format::Credits(player.Accounts().Credits()));
+			ImGuiLua::SetValue("mainmenu.player.date", player.GetDate().ToString());
+			ImGuiLua::SetValue("mainmenu.player.playtime", Format::PlayTime(player.GetPlayTime()));
+
+			if (player.Flagship())
+			{
+				const Ship& flagship = *player.Flagship();
+				ImGuiLua::SetValue("mainmenu.player.flagship.name", flagship.Name());
+				ImGuiLua::SetValue("mainmenu.player.flagship.sprite", flagship.GetSprite()->Name());
+			}
+			if (player.GetSystem())
+				ImGuiLua::SetValue("mainmenu.player.system_name", player.GetSystem()->Name());
+			if (player.GetPlanet())
+				ImGuiLua::SetValue("mainmenu.player.planet_name", player.GetPlanet()->Name());
+		}
+	}
 }
 
 
@@ -109,75 +136,66 @@ void MenuPanel::Step()
 	//}
 }
 
-
-
 void MenuPanel::Draw()
 {
 	glClear(GL_COLOR_BUFFER_BIT);
 	GameData::Background().Draw(Point(), Point());
 
 	Information info;
-	if(player.IsLoaded() && !player.IsDead())
-	{
-		info.SetCondition("pilot loaded");
-		info.SetString("pilot", player.FirstName() + " " + player.LastName());
-		if(player.Flagship())
-		{
-			const Ship &flagship = *player.Flagship();
-			info.SetSprite("ship sprite", flagship.GetSprite());
-			info.SetString("ship", flagship.Name());
-		}
-		if(player.GetSystem())
-			info.SetString("system", player.GetSystem()->Name());
-		if(player.GetPlanet())
-			info.SetString("planet", player.GetPlanet()->Name());
-		info.SetString("credits", Format::Credits(player.Accounts().Credits()));
-		info.SetString("date", player.GetDate().ToString());
-		info.SetString("playtime", Format::PlayTime(player.GetPlayTime()));
-	}
-	else if(player.IsLoaded())
-	{
-		info.SetCondition("no pilot loaded");
-		info.SetString("pilot", player.FirstName() + " " + player.LastName());
-		info.SetString("ship", "You have died.");
-	}
-	else
-	{
-		info.SetCondition("no pilot loaded");
-		info.SetString("pilot", "No Pilot Loaded");
-	}
-
 	GameData::Interfaces().Get("menu background")->Draw(info, this);
 	//mainMenuUi->Draw(info, this);
 	//GameData::Interfaces().Get("menu player info")->Draw(info, this);
 
 	//if(!credits.empty())
 	//	DrawCredits();
-	ImGuiLua::CallDrawFunction("drawMenuPanel");
+	ImGuiLua::CallDrawFunction("drawMenuPanel", [this](string id, const LuaValueMap& args) { this->HandleAction(id, args); });
 }
 
 
 
-bool MenuPanel::KeyDown(SDL_Keycode key, Uint16 mod, const Command &command, bool isNewPress)
+void MenuPanel::HandleAction(string actionId, const LuaValueMap& args)
 {
-	if(player.IsLoaded() && (key == 'e' || command.Has(Command::MENU)))
+	if (actionId == "LoadGame")
+	{
+		GetUI()->Push(new LoadPanel(player, gamePanels));
+	}
+	else if (actionId == "ContinueGame" && player.IsLoaded())
 	{
 		gamePanels.CanSave(true);
 		GetUI()->PopThrough(this);
 	}
-	else if(key == 'p')
-		GetUI()->Push(new PreferencesPanel());
-	else if(key == 'l')
-		GetUI()->Push(new LoadPanel(player, gamePanels));
-	else if(key == 'n' && (!player.IsLoaded() || player.IsDead()))
+	else if (actionId == "NewGame" && (!player.IsLoaded() || player.IsDead()))
 	{
 		// If no player is loaded, the "Enter Ship" button becomes "New Pilot."
 		// Request that the player chooses a start scenario.
 		// StartConditionsPanel also handles the case where there's no scenarios.
 		GetUI()->Push(new StartConditionsPanel(player, gamePanels, GameData::StartOptions(), nullptr));
 	}
-	else if(key == 'q')
+	else if (actionId == "Preferences")
+	{
+		GetUI()->Push(new PreferencesPanel());
+	}
+	else if (actionId == "Quit")
+	{
 		GetUI()->Quit();
+	}
+}
+
+
+
+bool MenuPanel::KeyDown(SDL_Keycode key, Uint16 mod, const Command &command, bool isNewPress)
+{
+	//TODO: Need a better way of handling keyboard shortcuts
+	if (key == 'e' || command.Has(Command::MENU))
+		HandleAction("ContinueGame", {});
+	else if (key == 'p')
+		HandleAction("Preferences", {});
+	else if (key == 'l')
+		HandleAction("LoadGame", {});
+	else if (key == 'n')
+		HandleAction("NewGame", {});
+	else if (key == 'q')
+		HandleAction("Quit", {});
 	else if(key == ' ')
 		scrollingPaused = !scrollingPaused;
 	else if(key == SDLK_DOWN)

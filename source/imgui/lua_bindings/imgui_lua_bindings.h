@@ -22,6 +22,7 @@ this program. If not, see <https://www.gnu.org/licenses/>.
 typedef uint32_t ImTextureID;
 
 struct lua_State;
+const char* CallFunction(const char* functionName);
 void LoadImguiBindings(lua_State* L, std::function<ImTextureID (const char*)> converter);
-
+void UnrollImguiStack();
 #endif

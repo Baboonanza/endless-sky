@@ -93,7 +93,7 @@ int main(int argc, char *argv[])
         InitConsole();
 #endif
     Conversation conversation;
-    bool debugMode = false;
+    bool debugMode = true;
     bool loadOnly = false;
     bool printTests = false;
     bool printData = false;
@@ -290,10 +290,6 @@ void GameLoop(PlayerInfo &player, const Conversation &conversation, const string
         ImGui_ImplOpenGL3_NewFrame();
         ImGui_ImplSDL2_NewFrame();
         ImGui::NewFrame();
-		if (debugMode)
-		{
-			DebugMenu(); // Show demo window! :)
-		}
 
         // Handle any events that occurred in this frame.
         SDL_Event event;
@@ -430,13 +426,23 @@ void GameLoop(PlayerInfo &player, const Conversation &conversation, const string
 
         Audio::Step();
 
+		// Sync Lua data before drawing
+		ImGuiLua::SyncPendingData();
+
         // Events in this frame may have cleared out the menu, in which case
         // we should draw the game panels instead:
         (menuPanels.IsEmpty() ? gamePanels : menuPanels).DrawAll();
         if (isFastForward)
             SpriteShader::Draw(SpriteSet::Get("ui/fast forward"), Screen::TopLeft() + Point(10., 10.));
 
-        // ImGui render frame
+		// ImGui debug stuff
+		if (debugMode)
+		{
+			DebugMenu();
+			ImGuiLua::DebugShowErrors();
+		}
+
+		// ImGui render frame
         ImGui::Render();
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
@@ -459,32 +465,62 @@ void GameLoop(PlayerInfo &player, const Conversation &conversation, const string
 
 void DebugMenu()
 {
-	static bool showDemoWindow = false;
-	const auto shortcutPressed = [](ImGuiKey key) {
-		return ImGui::IsKeyPressed(ImGui::GetKeyIndex(key))/* && ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_LeftCtrl))*/;
-	};
+	static bool showImGuiWindows[]{false, false, false, false, false, false, false, false, false, false};
+	static bool showUIData{ false };
+	bool reload{ false };
 
-    ImGui::BeginMainMenuBar();
+	ImGui::SetNextWindowPos(ImVec2(0.0f, 0.0f));
+	ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
+	ImGui::Begin("MainMenuWindow", nullptr, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_MenuBar | ImGuiWindowFlags_NoBringToFrontOnFocus);
+    ImGui::BeginMenuBar();
     {
 		if (ImGui::BeginMenu("UI"))
 		{
-			if (ImGui::MenuItem("Reload Lua Script", "Ctrl+R", nullptr, true) || shortcutPressed(ImGuiKey_R))
-				ImGuiLua::Reload();
+			if (ImGui::MenuItem("Reload Lua Script", "Ctrl+R", nullptr, true))
+				reload = true;
+			ImGui::Separator();
+			if (ImGui::MenuItem("UI Data Viewer", "Ctrl+D", nullptr, true))
+				showUIData = true;
+
 			ImGui::EndMenu();
 		}
 
         if (ImGui::BeginMenu("ImGui"))
         {
-			if (ImGui::MenuItem("ImGui Demo", nullptr, nullptr, true))
-				showDemoWindow = !showDemoWindow;
+			if (ImGui::MenuItem("Demo", nullptr, showImGuiWindows[0], true))
+				showImGuiWindows[0] = !showImGuiWindows[0];
+			if (ImGui::MenuItem("Metrics", nullptr, showImGuiWindows[1], true))
+				showImGuiWindows[1] = !showImGuiWindows[1];
+			if (ImGui::MenuItem("Debug Log", nullptr, showImGuiWindows[2], true))
+				showImGuiWindows[2] = !showImGuiWindows[2];
+			if (ImGui::MenuItem("Stack Tool", nullptr, showImGuiWindows[3], true))
+				showImGuiWindows[3] = !showImGuiWindows[3];
+			if (ImGui::MenuItem("Style Editor", nullptr, showImGuiWindows[4], true))
+				showImGuiWindows[4] = !showImGuiWindows[4];
+			if (ImGui::MenuItem("About", nullptr, showImGuiWindows[5], true))
+				showImGuiWindows[5] = !showImGuiWindows[5];
 			ImGui::EndMenu();
 		}
     }
-    ImGui::EndMainMenuBar();
+    ImGui::EndMenuBar();
+	ImGui::End();
+	ImGui::PopStyleVar(1);
 
-	if (showDemoWindow)
+	if (showImGuiWindows[0]) ImGui::ShowDemoWindow(&showImGuiWindows[0]);
+	if (showImGuiWindows[1]) ImGui::ShowMetricsWindow(&showImGuiWindows[1]);
+	if (showImGuiWindows[2]) ImGui::ShowDebugLogWindow(&showImGuiWindows[2]);
+	if (showImGuiWindows[3]) ImGui::ShowStackToolWindow(&showImGuiWindows[3]);
+	if (showImGuiWindows[4]) ImGui::ShowStyleEditor();
+	if (showImGuiWindows[5]) ImGui::ShowAboutWindow(&showImGuiWindows[6]);
+
+	if (reload || (ImGui::IsKeyPressed(ImGuiKey_R, false) && ImGui::IsKeyDown(ImGuiKey_LeftCtrl)))
 	{
-		ImGui::ShowDemoWindow();
+		ImGuiLua::Reload();
+	}
+	if (showUIData || (ImGui::IsKeyPressed(ImGuiKey_D, false) && ImGui::IsKeyDown(ImGuiKey_LeftCtrl)))
+	{
+		showUIData = true;
+		ImGuiLua::DebugUIDataWindow(&showUIData);
 	}
 }
 

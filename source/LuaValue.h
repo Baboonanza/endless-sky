@@ -22,57 +22,42 @@ this program. If not, see <https://www.gnu.org/licenses/>.
 
 struct lua_State;
 
+// Map to emulate Lua's table
 typedef std::map<std::string, class LuaValue> LuaValueMap;
 
-// A Quick'n'drity value class for storing the different type we want to send to Lua
-// Would much rather have used std::variant :(
+// A Quick'n'dirty value class for storing the different type we want to
+// send to Lua. A poor man's std::variant :(
 class LuaValue
 {
 public:
-	enum class ValueType { Nil, Bool, Int, Double, String, ValueMap };
+	enum class ValueType { Nil, Bool, Integer, Number, String };
 
+	LuaValue() = default;
 	LuaValue(bool value);
 	LuaValue(int64_t value);
 	LuaValue(double value);
-	LuaValue(const std::string& value);
-	LuaValue(LuaValueMap&& value);
+	LuaValue(std::string value);
+	LuaValue(const LuaValue& other);
 
-	LuaValue(LuaValue&& other);
+	LuaValue& operator=(const LuaValue& other);
+	bool operator==(const LuaValue& other) const;
+	bool operator!=(const LuaValue& other) const;
 
-	~LuaValue();
+	std::string ToString() const;
 
-	// Movable but not copyable or we'd have to deep-copy value maps
-	LuaValue(const LuaValue&) = delete;
-	LuaValue& operator=(const LuaValue&) = delete;
-
-	void set(bool value);
-	void set(int64_t value);
-	void set(double value);
-	void set(const std::string& value);
-	LuaValueMap& set(LuaValueMap&& value);
-
-	ValueType getType();
-
-	bool isNil() const;
-	bool getBool() const;
-	int64_t getInt() const;
-	double getDouble() const;
-	const std::string& getString() const;
-	const LuaValueMap& getMap() const;
-
-private:
-	void release();
+	// Lua interactions, not for direct panel use
+	bool ReadValueFromLua(lua_State* L, int stackIx);
+	void PushValueToLua(lua_State* L) const;
 
 private:
 	ValueType m_type{ ValueType::Nil };
 	union {
 		bool valueBool;
-		int64_t valueInt;
-		double valueDouble;
-		std::string* valueString;
-		LuaValueMap* valueMap;
+		int64_t valueInteger;
+		double valueNumber;
 	} m_value;
+	// Keeping this outside the union is unpleasant but saves so much hassle with heap allocation, move operators etc.
+	std::string m_string; 
 };
 
 #endif
-

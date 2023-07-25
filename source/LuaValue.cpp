@@ -1,174 +1,176 @@
 #include "LuaValue.h"
+#include "LuaValue.h"
+#include "LuaValue.h"
 
-#include <utility>
-#include <cassert>
+#include "lua.hpp"
 
 using namespace std;
 
-
+constexpr double NUMBER_EQUALITY_TOLERANCE{ 0.0001 };
 
 LuaValue::LuaValue(bool value)
+	: m_type{ ValueType::Bool }
 {
-	set(value);
-}
-
-
-
-LuaValue::~LuaValue()
-{
-	release();
-}
-
-
-
-LuaValue::LuaValue(int64_t value)
-{
-	set(value);
-}
-
-
-
-LuaValue::LuaValue(double value)
-{
-	set(value);
-}
-
-
-
-LuaValue::LuaValue(const std::string& value)
-{
-	set(value);
-}
-
-
-
-LuaValue::LuaValue(LuaValueMap&& value)
-{
-	set(std::move(value));
-}
-
-
-
-void LuaValue::set(bool value)
-{
-	release();
-	m_type = ValueType::Bool;
 	m_value.valueBool = value;
 }
 
 
 
-void LuaValue::set(int64_t value)
+LuaValue::LuaValue(int64_t value)
+	: m_type{ ValueType::Integer }
 {
-	release();
-	m_type = ValueType::Int;
-	m_value.valueInt = value;
+	m_value.valueInteger = value; // maybe need to use lua_numbertointeger?
+} 
+
+
+
+LuaValue::LuaValue(double value)
+	: m_type{ ValueType::Number }
+{
+	m_value.valueNumber = value;
 }
 
 
 
-void LuaValue::set(double value)
+LuaValue::LuaValue(string value)
+	: m_type{ ValueType::String }, m_string{ value }
 {
-	release();
-	m_type = ValueType::Double;
-	m_value.valueDouble = value;
 }
 
 
 
-void LuaValue::set(const string& value)
+LuaValue::LuaValue(const LuaValue& other)
 {
-	if (m_type == ValueType::String)
+	*this = other;
+}
+
+
+
+bool LuaValue::ReadValueFromLua(lua_State* L, int stackIx)
+{
+	switch (lua_type(L, stackIx))
 	{
-		*m_value.valueString = value;
-	}
-	else
-	{
-		if (m_type == ValueType::ValueMap)
-			delete m_value.valueMap;
+	case LUA_TNIL:
+		m_type = ValueType::Nil;
+		return true;
+	case LUA_TBOOLEAN:
+		m_type = ValueType::Bool;
+		m_value.valueBool = lua_toboolean(L, stackIx);
+		return true;
+	case LUA_TNUMBER:
+		if (lua_isinteger(L, stackIx))
+		{
+			m_type = ValueType::Integer;
+			m_value.valueInteger = lua_tointeger(L, stackIx);
+		}
+		else
+		{
+			m_type = ValueType::Number;
+			m_value.valueNumber = lua_tonumber(L, stackIx);
+		}
+		return true;
+	case LUA_TSTRING:
 		m_type = ValueType::String;
-		m_value.valueString = new string(value);
+		m_string = lua_tostring(L, stackIx);
+		return true;
 	}
+	return false;
 }
 
 
 
-LuaValueMap& LuaValue::set(LuaValueMap&& value)
+void LuaValue::PushValueToLua(lua_State *L) const
 {
-	if (m_type == ValueType::ValueMap)
+	switch (m_type)
 	{
-		*m_value.valueMap = std::move(value);
+	case ValueType::Nil:
+		lua_pushnil(L);
+		break;
+	case ValueType::Bool:
+		lua_pushboolean(L, m_value.valueBool);
+		break;
+	case ValueType::Integer:
+		lua_pushinteger(L, static_cast<lua_Integer>(m_value.valueInteger));
+		break;
+	case ValueType::Number:
+		lua_pushnumber(L, static_cast<lua_Number>(m_value.valueNumber));
+		break;
+	case ValueType::String:
+		lua_pushstring(L, m_string.c_str());
+		break;
 	}
-	else
+}
+
+
+
+LuaValue& LuaValue::operator=(const LuaValue& other)
+{
+	m_type = other.m_type;
+	switch (m_type)
 	{
-		if (m_type == ValueType::String)
-			delete m_value.valueString;
-		m_type = ValueType::ValueMap;
-		m_value.valueMap = new LuaValueMap(std::move(value));
+	case ValueType::Nil:
+		break;
+	case ValueType::Bool:
+		m_value.valueBool = other.m_value.valueBool;
+		break;
+	case ValueType::Integer:
+		m_value.valueInteger = other.m_value.valueInteger;
+		break;
+	case ValueType::Number:
+		m_value.valueNumber = other.m_value.valueNumber;
+		break;
+	case ValueType::String:
+		m_string = other.m_string;
+		break;
 	}
-	return *m_value.valueMap;
+	return *this;
 }
 
 
 
-LuaValue::ValueType LuaValue::getType()
+bool LuaValue::operator==(const LuaValue& other) const
 {
-	return ValueType();
+	if (m_type != other.m_type)
+		return false;
+	switch (m_type)
+	{
+	case ValueType::Nil:
+		return true;
+	case ValueType::Bool: 
+		return m_value.valueBool == other.m_value.valueBool;
+	case ValueType::Integer:
+		return m_value.valueInteger == other.m_value.valueInteger;
+	case ValueType::Number:
+		return abs(m_value.valueNumber - other.m_value.valueNumber) < NUMBER_EQUALITY_TOLERANCE;
+	case ValueType::String:
+		return m_string == other.m_string;
+	}
 }
 
 
 
-bool LuaValue::isNil() const
+bool LuaValue::operator!=(const LuaValue& other) const
 {
-	return m_type == ValueType::Nil;
+	return !(*this == other);
 }
 
 
 
-bool LuaValue::getBool() const
+
+std::string LuaValue::ToString() const
 {
-	assert(m_type == ValueType::Bool);
-	return m_value.valueBool;
+	switch (m_type)
+	{
+	case ValueType::Nil:
+		return "-Nil-";
+	case ValueType::Bool:
+		return m_value.valueBool ? "true" : "false";
+	case ValueType::Integer:
+		return std::to_string(m_value.valueInteger);
+	case ValueType::Number:
+		return std::to_string(m_value.valueNumber);
+	case ValueType::String:
+		return m_string;
+	}
 }
 
-
-
-int64_t LuaValue::getInt() const
-{
-	assert(m_type == ValueType::Int);
-	return m_value.valueInt;
-}
-
-
-
-double LuaValue::getDouble() const
-{
-	assert(m_type == ValueType::Double);
-	return m_value.valueDouble;
-}
-
-
-
-const std::string& LuaValue::getString() const
-{
-	assert(m_type == ValueType::String);
-	return *m_value.valueString;
-}
-
-
-
-const LuaValueMap& LuaValue::getMap() const
-{
-	assert(m_type == ValueType::ValueMap);
-	return *m_value.valueMap;
-}
-
-
-
-void LuaValue::release()
-{
-	if (m_type == ValueType::String)
-		delete m_value.valueString;
-	else if (m_type == ValueType::ValueMap)
-		delete m_value.valueMap;
-}
