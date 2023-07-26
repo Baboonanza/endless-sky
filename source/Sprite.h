@@ -56,10 +56,8 @@ public:
 	uint32_t Texture() const;
 	uint32_t Texture(bool isHighDPI) const;
 
-
 private:
 	std::string name;
-	bool uiSprite = false;
 
 	uint32_t texture[2] = {0, 0};
 

@@ -277,11 +277,23 @@ bool ImGuiLua::CallDrawFunction(const string& functionName, OnUIActionHandler _o
 
 void ImGuiLua::DebugUIDataWindow(bool* opened)
 {
+	static string selected;
+
 	ImGui::Begin("UI Data Viewer", opened);
+	const float valueColumn = std::max(ImGui::GetWindowSize().x * 0.6f, ImGui::GetWindowSize().x - 500.f);
+
+	ImGui::Text("Click a row to copy the key to your clipboard");
 	ImGui::BeginListBox("UI Data List", { -FLT_MIN, -FLT_MIN });
 	for (const auto& pair : backupData)
 	{
-		ImGui::LabelText(pair.second.ToString().c_str(), "%s", pair.first.c_str());
+		if (ImGui::Selectable(pair.first.c_str(), selected == pair.first))
+		{
+			selected = pair.first;
+			ImGui::SetClipboardText(pair.first.c_str());
+		}
+		ImGui::SameLine();
+		ImGui::SetCursorPosX(valueColumn);
+		ImGui::TextUnformatted(pair.second.ToString().c_str());
 	}
 	ImGui::EndListBox();
 	ImGui::End();
@@ -299,8 +311,9 @@ void ImGuiLua::DebugShowErrors()
 			text += '\n' + errors[i];
 		}
 
+		ImGui::SetNextWindowSize({ 500.f, 400.f });
 		ImGui::Begin("ErrorWindow", nullptr, ImGuiWindowFlags_NoDecoration);
-		ImGui::TextUnformatted(text.c_str());
+		ImGui::TextWrapped("%s", text.c_str());
 		if (ImGui::Button("OK"))
 		{
 			errors = {};

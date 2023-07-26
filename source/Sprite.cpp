@@ -31,9 +31,6 @@ using namespace std;
 Sprite::Sprite(const string &name)
 	: name(name)
 {
-	// TEMPORARY HACK: Distinguish between ui textures that require a standard 2D sampler for imgui and sprites drawn by the engine which require
-	// a 3D sampler
-	uiSprite = name.find("ui/") == 0;
 }
 
 
@@ -66,42 +63,21 @@ void Sprite::AddFrames(ImageBuffer &buffer, bool is2x)
 
 	// Upload the images as a single array texture.
 	glGenTextures(1, &texture[is2x]);
-	if (buffer.Frames() == 1 && uiSprite)
-	{
-		glBindTexture(GL_TEXTURE_2D, texture[is2x]);
+	glBindTexture(GL_TEXTURE_2D_ARRAY, texture[is2x]);
 
-		// Use linear interpolation and no wrapping.
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	// Use linear interpolation and no wrapping.
+	glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
-		// Upload the image data.
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, // target, mipmap level, internal format,
-			buffer.Width(), buffer.Height(), // width, height, 
-			0, GL_RGBA, GL_UNSIGNED_BYTE, buffer.Pixels()); // border, input format, data type, data.
+	// Upload the image data.
+	glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_RGBA8, // target, mipmap level, internal format,
+		buffer.Width(), buffer.Height(), buffer.Frames(), // width, height, depth,
+		0, GL_RGBA, GL_UNSIGNED_BYTE, buffer.Pixels()); // border, input format, data type, data.
 
-		// Unbind the texture.
-		glBindTexture(GL_TEXTURE_2D, 0);
-	}
-	else
-	{
-		glBindTexture(GL_TEXTURE_2D_ARRAY, texture[is2x]);
-
-		// Use linear interpolation and no wrapping.
-		glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-		glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-		glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-		glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-
-		// Upload the image data.
-		glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_RGBA8, // target, mipmap level, internal format,
-			buffer.Width(), buffer.Height(), buffer.Frames(), // width, height, depth,
-			0, GL_RGBA, GL_UNSIGNED_BYTE, buffer.Pixels()); // border, input format, data type, data.
-
-		// Unbind the texture.
-		glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
-	}
+	// Unbind the texture.
+	glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
 
 	// Free the ImageBuffer memory.
 	buffer.Clear();
