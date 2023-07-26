@@ -244,6 +244,11 @@ int main(int argc, char *argv[])
 
 void GameLoop(PlayerInfo &player, const Conversation &conversation, const string &testToRunName, bool debugMode)
 {
+	// Load ImGui fonts. We use the default one for debug UI and nicer one for game UI
+	ImGuiIO& io = ImGui::GetIO();
+	ImFont* defaultFont = io.Fonts->AddFontDefault();
+	ImFont* gameFont = io.Fonts->AddFontFromFileTTF(string(Files::Resources() + "images/font/Ubuntu-R.ttf").c_str(), 18, nullptr, io.Fonts->GetGlyphRangesDefault());
+
     // gamePanels is used for the main panel where you fly your spaceship.
     // All other game content related dialogs are placed on top of the gamePanels.
     // If there are both menuPanels and gamePanels, then the menuPanels take
@@ -290,6 +295,10 @@ void GameLoop(PlayerInfo &player, const Conversation &conversation, const string
         ImGui_ImplOpenGL3_NewFrame();
         ImGui_ImplSDL2_NewFrame();
         ImGui::NewFrame();
+
+		// Set game skin
+		if (gameFont)
+			ImGui::PushFont(gameFont);
 
         // Handle any events that occurred in this frame.
         SDL_Event event;
@@ -435,6 +444,10 @@ void GameLoop(PlayerInfo &player, const Conversation &conversation, const string
         if (isFastForward)
             SpriteShader::Draw(SpriteSet::Get("ui/fast forward"), Screen::TopLeft() + Point(10., 10.));
 
+		// Unset game skin
+		if (gameFont)
+			ImGui::PopFont();
+
 		// ImGui debug stuff
 		if (debugMode)
 		{
@@ -445,6 +458,7 @@ void GameLoop(PlayerInfo &player, const Conversation &conversation, const string
 		// ImGui render frame
         ImGui::Render();
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+
 
         GameWindow::Step();
 
